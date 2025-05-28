@@ -1,0 +1,98 @@
+import pandas as pd
+import numpy as np
+import random
+import math
+
+# === Parametry ===
+n = 10
+m = 3
+iterations = 5000
+seed = 42
+
+# === Wczytanie danych ===
+p = pd.read_csv(f'n_{n}_m_{m}.csv', index_col=0).to_numpy()
+
+# === Funkcja obliczająca Cmax (makespan) ===
+def total_time(sol: list):
+    n = len(sol)
+    C = np.zeros((m, n))  # maszyny × zadania
+
+    for j in range(n):
+        task = sol[j]
+        for i in range(m):
+            if i == 0 and j == 0:
+                C[i][j] = p[task][i]
+            elif i == 0:
+                C[i][j] = C[i][j-1] + p[task][i]
+            elif j == 0:
+                C[i][j] = C[i-1][j] + p[task][i]
+            else:
+                C[i][j] = max(C[i-1][j], C[i][j-1]) + p[task][i]
+
+    return C[-1][-1]  # Zwracamy Cmax
+
+# === Losowy sąsiad (zamiana dwóch zadań) ===
+def random_neighbour(sol: list):
+    new_sol = sol.copy()
+    i, j = random.sample(range(len(sol)), 2)
+    new_sol[i], new_sol[j] = new_sol[j], new_sol[i]
+    return new_sol
+
+# === Algorytm Random Search (Losowe przeszukiwanie) ===
+def random_search(p, iterations=1000):
+    n = p.shape[0]
+    current = list(range(n))
+    random.shuffle(current)
+
+    best_sol = current.copy()
+    best_cost = total_time(best_sol)
+
+    for _ in range(iterations):
+        neighbor = random_neighbour(current)
+        cost = total_time(neighbor)
+
+        if cost < best_cost:
+            best_sol = neighbor
+            best_cost = cost
+            current = neighbor  # opcjonalnie: kontynuujemy od nowego rozwiązania
+
+    return best_sol, best_cost
+
+# === Algorytm Symulowanego Wyżarzania (Simulated Annealing) ===
+def simulated_annealing(p, iterations=1000, t0=1000, alpha=0.995):
+    n = p.shape[0]
+    current = list(range(n))
+    random.shuffle(current)
+    current_cost = total_time(current)
+
+    best_sol = current.copy()
+    best_cost = current_cost
+    t = t0
+
+    for _ in range(iterations):
+        neighbor = random_neighbour(current)
+        neighbor_cost = total_time(neighbor)
+        delta = neighbor_cost - current_cost
+
+        if delta < 0 or random.random() < math.exp(-delta / t):
+            current = neighbor
+            current_cost = neighbor_cost
+            if neighbor_cost < best_cost:
+                best_sol = neighbor
+                best_cost = neighbor_cost
+
+        t *= alpha
+
+    return best_sol, best_cost
+
+# === Uruchomienie i wyniki ===
+if __name__ == "__main__":
+    print("Uruchamianie algorytmu Random Search...")
+    rs_sol, rs_cost = random_search(p, iterations)
+    print("Najlepsze rozwiązanie RS:", rs_sol)
+    print("Cmax (RS):", rs_cost)
+
+    print("\nUruchamianie algorytmu Symulowanego Wyżarzania...")
+    sa_sol, sa_cost = simulated_annealing(p, iterations)
+    print("Najlepsze rozwiązanie SA:", sa_sol)
+    print("Cmax (SA):", sa_cost)
