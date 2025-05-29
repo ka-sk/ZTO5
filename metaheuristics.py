@@ -31,27 +31,53 @@ def total_time(sequence: list, p: np.ndarray) -> float:
     return C[n, m]
 
 
-def random_neighbour(sol: list) -> list:
-    if len(sol) < 2:
-        return sol
+def swap_neighbour(sol: list) -> list:
     i, j = random.sample(range(len(sol)), 2)
     neighbour = sol.copy()
     neighbour[i], neighbour[j] = neighbour[j], neighbour[i]
     return neighbour
 
+def insert_neighbour(sol: list) -> list:
+    i, j = random.sample(range(len(sol)), 2)
+    neighbour = sol.copy()
+    job = neighbour.pop(i)
+    neighbour.insert(j, job)
+    return neighbour
+
+def initial_solution(n: int, method: str = "random", p: np.ndarray = None, k: int = 10) -> List[int]:
+    if method == "random":
+        sol = list(range(n))
+        random.shuffle(sol)
+        return sol
+    elif method == "sorted_sum" and p is not None:
+        return sorted(range(n), key=lambda i: sum(p[i]))
+    elif method == "best_of_k" and p is not None:
+        best = None
+        best_cost = float("inf")
+        for _ in range(k):
+            sol = list(range(n))
+            random.shuffle(sol)
+            cost = total_time(sol, p)
+            if cost < best_cost:
+                best = sol
+                best_cost = cost
+        return best
+    else:
+        raise ValueError("Unknown initial solution method or missing data.")
 
 def random_search(p: np.ndarray,
                   max_iter: int = 1000,
+                  neighbour_func=swap_neighbour,
+                  init_method: str = "random",
                   plot_history: bool = True) -> Tuple[List[int], float]:
     n, _ = p.shape
-    current = list(range(n))
-    random.shuffle(current)
+    current = initial_solution(n, init_method, p)
     best = current.copy()
     best_val = total_time(best, p)
     history = [best_val]
     
     for iteration in range(1, max_iter + 1):
-        neighbour = random_neighbour(current)
+        neighbour = neighbour_func(current)
         cur_val = total_time(current, p)
         n_val = total_time(neighbour, p)
         if n_val < cur_val:
@@ -60,13 +86,13 @@ def random_search(p: np.ndarray,
                 best, best_val = neighbour.copy(), n_val
         history.append(best_val)
     
-    if plot_history:
+    if plot_history and not os.path.isfile('data/RS_{p.shape}.png'):
         plt.figure()
         plt.plot(range(len(history)), history)
         plt.xlabel('Iteration')
         plt.ylabel('Best makespan')
         plt.title('Random Search: Najlepsze rozwiązanie od liczby iteracji')
-        plt.savefig(f"RS_{p.shape}.png")
+        plt.savefig(f"data/RS_{p.shape}.png")
         plt.close()
     
     return best, best_val
@@ -77,17 +103,18 @@ def simulated_annealing(p: np.ndarray,
                         initial_temp: float = None,
                         alpha: float = 0.995,
                         epoch_length: int = 100,
-                        stagnation_threshold: int = 50,
+                        stagnation_threshold: int = 10000000,
+                        init_method: str = "random",
+                        neighbour_func=swap_neighbour,
                         plot_history: bool = True) -> Tuple[List[int], float]:
     n, _ = p.shape
-    current = list(range(n))
-    random.shuffle(current)
+    current = initial_solution(n, init_method, p)
     cur_val = total_time(current, p)
     best, best_val = current.copy(), cur_val
 
     # initial temperature estimation
     if initial_temp is None:
-        samples = [total_time(random_neighbour(current), p) for _ in range(1000)]
+        samples = [total_time(neighbour_func(current), p) for _ in range(1000)]
         temp_range = max(samples) - min(samples)
         initial_temp = temp_range if temp_range > 0 else 1.0
     t = initial_temp
@@ -97,12 +124,14 @@ def simulated_annealing(p: np.ndarray,
     delta_history = [0.0]
     epoch_count = 0
 
+    
+    no_improve = 0
     while epoch_count < max_iter and t > 1e-8:
         epoch_count += 1
-        no_improve = 0
+        
         # one epoch of moves
         for _ in range(epoch_length):
-            neighbour = random_neighbour(current)
+            neighbour = neighbour_func(current)
             n_val = total_time(neighbour, p)
             delta = n_val - cur_val
             if delta < 0 or random.random() < np.exp(-delta / t):
@@ -126,7 +155,7 @@ def simulated_annealing(p: np.ndarray,
         temp_history.append(t)
         delta_history.append(abs(best_val - prev_best))
 
-    if plot_history:
+    if plot_history and not os.path.isfile('data/SA_{p.shape}_temp.png'):
         # 1) Best makespan
         plt.figure()
         plt.plot(range(len(best_history)), best_history)
@@ -149,7 +178,7 @@ def simulated_annealing(p: np.ndarray,
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
         ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
-        plt.savefig(f'SA_{p.shape}_temp.png')
+        plt.savefig(f'dala/SA_{p.shape}_temp.png')
         plt.close()
 
     return best, best_val

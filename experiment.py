@@ -124,9 +124,44 @@ def random_instance(n: int, m: int, low: int = 1, high: int = 99, Z: int = 42) -
     
     return p
 
-# Usage example:
 if __name__ == "__main__":
-    methods = {'RS': met.random_search, 'SA': met.simulated_annealing}
-    df_raw = experiment_vary_n([3, 4, 5, 6, 7, 8, 9, 10], 3, random_instance, methods, runs=20)
+    n_list = range(250, 400, 50)
+
+    # porównanie metod
+    methods = {
+        'RS_swap': met.random_search,
+        'RS_insert': met.random_search,
+        'SA_swap': met.simulated_annealing,
+        'SA_insert': met.simulated_annealing
+    }
+
+    kwargs = {
+        'RS_swap': {'neighbour_func': met.swap_neighbour},
+        'RS_insert': {'neighbour_func': met.insert_neighbour},
+        'SA_swap': {'neighbour_func': met.swap_neighbour},
+        'SA_insert': {'neighbour_func': met.insert_neighbour}
+    }
+
+    df_raw = experiment_vary_n((n_list), 3, random_instance, methods, runs=5, method_kwargs=kwargs)
     df_summary = summarize_results(df_raw)
-    df_summary.to_csv('experiment_summary.csv', index=False)
+    df_summary.to_csv('neighbour_summary.csv', index=False)
+    print("\nEksperyment zakończony. Wyniki zapisane.")
+###################################################################
+    # porównanie sąsiadów
+    methods = {
+        'SA_swap': met.simulated_annealing,
+        'SA_insert': met.simulated_annealing
+    }
+
+    kwargs = {
+        'SA_swap': {'neighbour_func': met.insert_neighbour, 'init_method': "random"},
+        'SA_insert': {'neighbour_func': met.insert_neighbour, 'init_method': "sorted_sum"},
+        'SA_insert': {'neighbour_func': met.insert_neighbour, 'init_method': "best_of_k"},
+    }
+
+    df_raw = experiment_vary_n((n_list), 3, random_instance, methods, runs=5, method_kwargs=kwargs)
+    df_summary = summarize_results(df_raw)
+    df_summary.to_csv('init_method_summary.csv', index=False)
+    print("\nSprawdzenie init method zakończony. Wyniki zapisane.")
+
+    ################################################################################
